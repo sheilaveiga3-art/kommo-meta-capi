@@ -9,6 +9,8 @@ app.use(express.urlencoded({ extended: true }));
 
 const PIXEL_ID = "2000845004161849";
 const ACCESS_TOKEN = "EAA51UoE82scBRBNFpaoDAJ3LXlgYcVdKZC27ndZBMuwOWLZB3cg3PnFXE8XakpbO9qxBqZCPgeZBCbm3wDUuYtymLeczz6HyMR9exZCEAJZCMbZBY3iNefJUnZCZClJShfZAIrIxmwRtXgoO6vtE4MixI5KVD7WZAPO2jyf0RcfgJo2kwk4EKS1BSQKFUdnKbL1t7PDuBAZDZD";
+const KOMMO_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjhkYmMxNGUxZDM2OGQ1NDc5Njg1YzM0Mzc4Nzg5OWY2MDFlODViZGFkOWUzMDg0YTQwZGYzYjhkMzFkYmMyN2M4NjhhNDQ2M2RlMTcyZjBmIn0.eyJhdWQiOiJmNjk0OWUxOC1lMjBjLTRiZGQtYmRjOS1iNjdhMDI3OTQ1ODMiLCJqdGkiOiI4ZGJjMTRlMWQzNjhkNTQ3OTY4NWMzNDM3ODc4OTlmNjAxZTg1YmRhZDllMzA4NGE0MGRmM2I4ZDMxZGJjMjdjODY4YTQ0NjNkZTE3MmYwZiIsImlhdCI6MTc3NTMzNjgwMCwibmJmIjoxNzc1MzM2ODAwLCJleHAiOjE5Mjc2NzA0MDAsInN1YiI6IjEzNDEwNDYzIiwiZ3JhbnRfdHlwZSI6IiIsImFjY291bnRfaWQiOjM0Nzg0NzQzLCJiYXNlX2RvbWFpbiI6ImtvbW1vLmNvbSIsInZlcnNpb24iOjIsInNjb3BlcyI6WyJwdXNoX25vdGlmaWNhdGlvbnMiLCJmaWxlcyIsImNybSIsImZpbGVzX2RlbGV0ZSIsIm5vdGlmaWNhdGlvbnMiXSwiaGFzaF91dWlkIjoiMTE3NjQxZGItMTc2Yi00ZDFiLTg5MmQtZWU0N2JmMTM4MGQyIiwiYXBpX2RvbWFpbiI6ImFwaS1nLmtvbW1vLmNvbSJ9.Nfl2Ibb0uj6cxOrVFCSYHNG85zBo9OM-lnZKtcj2DO-Y-QOrhVX-2mrzvlMoJ7Fjq5tADDTQwaDKMg46bNeytEDeTNg2PXi_SHwGXXeVi7HGVByJBpwB_gY9fgPem_Ndy6juPIjUn3RI3yGXtORQcKoejjH_3QJ4VGt_WZyq6BXXv8sG_OQj0JSmw0-9qLCQURXyE7BQj4GKdojJiz-QKEer2qK-xktvPAbrnWIhyhNNcJwh-lauOlbDLvwvcA4kEk6M78b5C6tbzaV8JMqwWNDNTug3C7NctV6OggssuzAGMQb6namDNceBDoV_-qmONCupJ2euAGIMvulFZJH12Q";
+const KOMMO_DOMAIN = "adrianoveiga3";
 
 const ID_LEAD = "142";
 const ID_COMPRA = "93105455";
@@ -18,9 +20,54 @@ function hashSHA256(value) {
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
 
-async function enviarEventoMeta(eventName, phone, value) {
+async function buscarContatoKommo(leadId) {
+  try {
+    const url = "https://api-g.kommo.com/api/v4/leads/" + leadId + "?with=contacts";
+    const res = await fetch(url, {
+      headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
+    });
+    const data = await res.json();
+    console.log("Lead Kommo:", JSON.stringify(data));
+
+    const contactId = data._embedded && data._embedded.contacts && data._embedded.contacts[0]
+      ? data._embedded.contacts[0].id : null;
+
+    if (!contactId) return {};
+
+    const resContact = await fetch("https://api-g.kommo.com/api/v4/contacts/" + contactId, {
+      headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
+    });
+    const contact = await resContact.json();
+    console.log("Contato Kommo:", JSON.stringify(contact));
+
+    let phone = null, email = null, firstName = null, lastName = null;
+
+    firstName = contact.first_name || null;
+    lastName = contact.last_name || null;
+
+    const fields = contact.custom_fields_values || [];
+    for (const field of fields) {
+      if (field.field_code === "PHONE" && field.values && field.values[0]) {
+        phone = field.values[0].value;
+      }
+      if (field.field_code === "EMAIL" && field.values && field.values[0]) {
+        email = field.values[0].value;
+      }
+    }
+
+    return { phone, email, firstName, lastName };
+  } catch (err) {
+    console.error("Erro ao buscar contato:", err);
+    return {};
+  }
+}
+
+async function enviarEventoMeta(eventName, contactData, value) {
   const userData = {};
-  if (phone) userData.ph = hashSHA256(String(phone).replace(/\D/g, ""));
+  if (contactData.phone) userData.ph = hashSHA256(String(contactData.phone).replace(/\D/g, ""));
+  if (contactData.email) userData.em = hashSHA256(contactData.email);
+  if (contactData.firstName) userData.fn = hashSHA256(contactData.firstName);
+  if (contactData.lastName) userData.ln = hashSHA256(contactData.lastName);
 
   const payload = {
     data: [{
@@ -44,50 +91,30 @@ async function enviarEventoMeta(eventName, phone, value) {
   return data;
 }
 
-function extrairTelefone(raw) {
-  try {
-    const contacts = raw.contacts && raw.contacts.update ? raw.contacts.update : [];
-    for (const contact of contacts) {
-      if (contact.custom_fields) {
-        for (const field of contact.custom_fields) {
-          if (field.code === "PHONE" && field.values && field.values[0]) {
-            return field.values[0].value;
-          }
-        }
-      }
-    }
-    // tenta pegar do nome do lead (WhatsApp às vezes coloca o número)
-    const leads = raw.leads && raw.leads.status ? raw.leads.status : [];
-    for (const lead of leads) {
-      if (lead.name && lead.name.match(/\d{8,}/)) return lead.name;
-    }
-  } catch(e) {}
-  return null;
-}
-
 app.post("/webhook", async (req, res) => {
   try {
     const raw = Object.assign({}, req.query, req.body);
     console.log("RAW:", JSON.stringify(raw));
 
     const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
-    const phone = extrairTelefone(raw);
-
     console.log("leadsArray:", JSON.stringify(leadsArray));
-    console.log("phone extraido:", phone);
 
     for (const lead of leadsArray) {
       const statusId = String(lead.status_id || "");
+      const leadId = lead.id;
       const price = lead.price || 0;
 
-      console.log("statusId:", statusId);
+      console.log("statusId:", statusId, "leadId:", leadId);
 
-      if (statusId === ID_LEAD) {
-        console.log("Disparando Lead");
-        await enviarEventoMeta("Lead", phone, price);
-      } else if (statusId === ID_COMPRA) {
-        console.log("Disparando Purchase");
-        await enviarEventoMeta("Purchase", phone, price);
+      if (statusId === ID_LEAD || statusId === ID_COMPRA) {
+        const contactData = await buscarContatoKommo(leadId);
+        console.log("Dados contato:", JSON.stringify(contactData));
+
+        if (statusId === ID_LEAD) {
+          await enviarEventoMeta("Lead", contactData, price);
+        } else {
+          await enviarEventoMeta("Purchase", contactData, price);
+        }
       }
     }
 
