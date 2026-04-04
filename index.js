@@ -10,8 +10,8 @@ app.use(express.urlencoded({ extended: true }));
 const PIXEL_ID = "2000845004161849";
 const ACCESS_TOKEN = "EAA51UoE82scBRG3csnZCvDs47npJEngQatAfjEhITZCPlxu8XHgbXktjSIZAI16xY7AEaRbrE66GFL5KhwDoyay1OUFFRKCq1rpawZBd3tFZCVmEr3BqgHnUa9mYMjZAQB3JMDrkmMo56edA0WrOTZADpZBrN2UK57EWy9uF2v2CUF72ulcgzwZBWn1dQXDL3ivRiFwZDZD";
 
-const ETAPA_LEAD = "continuou a conversa";
-const ETAPA_COMPRA = "agendado";
+const ID_LEAD = "142";
+const ID_COMPRA = "93105455";
 
 function hashSHA256(value) {
   if (!value) return null;
@@ -50,32 +50,23 @@ app.post("/webhook", async (req, res) => {
     const raw = Object.assign({}, req.query, req.body);
     console.log("Webhook RAW:", JSON.stringify(raw));
 
-    const leads = [];
-    const phones = [];
+    const leadsData = raw.leads && raw.leads.status ? raw.leads.status : [];
+    const phone = raw.leads && raw.leads.status && raw.leads.status[0]
+      ? raw.leads.status[0].name || null
+      : null;
 
-    for (const key of Object.keys(raw)) {
-      if (key.includes("[status]")) {
-        const status = raw[key];
-        const priceKey = key.replace("[status]", "[price]");
-        const price = raw[priceKey] || 0;
-        leads.push({ status, price });
-      }
-      if (key.includes("custom_fields") && key.includes("[value]")) {
-        phones.push(raw[key]);
-      }
-    }
+    console.log("Leads recebidos:", JSON.stringify(leadsData));
 
-    console.log("Leads:", JSON.stringify(leads));
-    console.log("Phones:", JSON.stringify(phones));
+    for (const lead of leadsData) {
+      const statusId = String(lead.status_id || "");
+      const price = lead.price || 0;
 
-    const phone = phones[0] || null;
+      console.log("Status ID:", statusId);
 
-    for (const lead of leads) {
-      const etapaNome = (lead.status || "").toLowerCase();
-      if (etapaNome.includes(ETAPA_LEAD)) {
-        await enviarEventoMeta("Lead", phone, null, lead.price);
-      } else if (etapaNome.includes(ETAPA_COMPRA)) {
-        await enviarEventoMeta("Purchase", phone, null, lead.price);
+      if (statusId === ID_LEAD) {
+        await enviarEventoMeta("Lead", phone, null, price);
+      } else if (statusId === ID_COMPRA) {
+        await enviarEventoMeta("Purchase", phone, null, price);
       }
     }
 
