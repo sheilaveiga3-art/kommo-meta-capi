@@ -9,6 +9,9 @@ app.use(express.json());
 const PIXEL_ID = "2000845004161849";
 const ACCESS_TOKEN = "EAA51UoE82scBRG3csnZCvDs47npJEngQatAfjEhITZCPlxu8XHgbXktjSIZAI16xY7AEaRbrE66GFL5KhwDoyay1OUFFRKCq1rpawZBd3tFZCVmEr3BqgHnUa9mYMjZAQB3JMDrkmMo56edA0WrOTZADpZBrN2UK57EWy9uF2v2CUF72ulcgzwZBWn1dQXDL3ivRiFwZDZD";
 
+const ETAPA_LEAD = "continuou a conversa";
+const ETAPA_COMPRA = "agendado";
+
 function hashSHA256(value) {
   if (!value) return null;
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
@@ -44,8 +47,9 @@ async function enviarEventoMeta(eventName, phone, email, value = 0) {
 app.post("/webhook", async (req, res) => {
   try {
     const body = req.body;
-    const leads = body?.leads?.add || body?.leads?.update || [];
-    const contacts = body?.contacts?.add || body?.contacts?.update || [];
+    console.log("Webhook recebido:", JSON.stringify(body));
+    const leads = body?.leads?.update || [];
+    const contacts = body?.contacts?.update || body?.contacts?.add || [];
 
     for (const lead of leads) {
       const etapaNome = (lead.status || "").toLowerCase();
@@ -60,9 +64,9 @@ app.post("/webhook", async (req, res) => {
         }
       }
 
-      if (etapaNome.includes("novo") || etapaNome.includes("lead")) {
+      if (etapaNome.includes(ETAPA_LEAD)) {
         await enviarEventoMeta("Lead", phone, email, value);
-      } else if (etapaNome.includes("ganho") || etapaNome.includes("compra")) {
+      } else if (etapaNome.includes(ETAPA_COMPRA)) {
         await enviarEventoMeta("Purchase", phone, email, value);
       }
     }
