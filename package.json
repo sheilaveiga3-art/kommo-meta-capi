@@ -1,0 +1,13 @@
+{
+  "name": "kommo-meta-capi",
+  "version": "1.0.0",
+  "description": "Webhook que recebe eventos do Kommo e envia para Meta CAPI",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
