@@ -18,10 +18,9 @@ function hashSHA256(value) {
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
 
-async function enviarEventoMeta(eventName, phone, email, value) {
+async function enviarEventoMeta(eventName, phone, value) {
   const userData = {};
-  if (phone) userData.ph = hashSHA256(phone.replace(/\D/g, ""));
-  if (email) userData.em = hashSHA256(email);
+  if (phone) userData.ph = hashSHA256(String(phone).replace(/\D/g, ""));
 
   const payload = {
     data: [{
@@ -48,25 +47,24 @@ async function enviarEventoMeta(eventName, phone, email, value) {
 app.post("/webhook", async (req, res) => {
   try {
     const raw = Object.assign({}, req.query, req.body);
-    console.log("Webhook RAW:", JSON.stringify(raw));
+    console.log("RAW:", JSON.stringify(raw));
 
-    const leadsData = raw.leads && raw.leads.status ? raw.leads.status : [];
-    const phone = raw.leads && raw.leads.status && raw.leads.status[0]
-      ? raw.leads.status[0].name || null
-      : null;
+    const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
+    console.log("leadsArray:", JSON.stringify(leadsArray));
 
-    console.log("Leads recebidos:", JSON.stringify(leadsData));
-
-    for (const lead of leadsData) {
+    for (const lead of leadsArray) {
       const statusId = String(lead.status_id || "");
       const price = lead.price || 0;
+      const phone = lead.name || null;
 
-      console.log("Status ID:", statusId);
+      console.log("statusId:", statusId, "phone:", phone);
 
       if (statusId === ID_LEAD) {
-        await enviarEventoMeta("Lead", phone, null, price);
+        console.log("Disparando evento Lead");
+        await enviarEventoMeta("Lead", phone, price);
       } else if (statusId === ID_COMPRA) {
-        await enviarEventoMeta("Purchase", phone, null, price);
+        console.log("Disparando evento Purchase");
+        await enviarEventoMeta("Purchase", phone, price);
       }
     }
 
