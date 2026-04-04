@@ -11,7 +11,7 @@ const PIXEL_ID = "2000845004161849";
 const ACCESS_TOKEN = "EAA51UoE82scBRG3csnZCvDs47npJEngQatAfjEhITZCPlxu8XHgbXktjSIZAI16xY7AEaRbrE66GFL5KhwDoyay1OUFFRKCq1rpawZBd3tFZCVmEr3BqgHnUa9mYMjZAQB3JMDrkmMo56edA0WrOTZADpZBrN2UK57EWy9uF2v2CUF72ulcgzwZBWn1dQXDL3ivRiFwZDZD";
 
 const ID_LEAD = "142";
-const ID_COMPRA = "93105455";
+const ID_COMPRA = "87758783";
 
 function hashSHA256(value) {
   if (!value) return null;
@@ -44,26 +44,49 @@ async function enviarEventoMeta(eventName, phone, value) {
   return data;
 }
 
+function extrairTelefone(raw) {
+  try {
+    const contacts = raw.contacts && raw.contacts.update ? raw.contacts.update : [];
+    for (const contact of contacts) {
+      if (contact.custom_fields) {
+        for (const field of contact.custom_fields) {
+          if (field.code === "PHONE" && field.values && field.values[0]) {
+            return field.values[0].value;
+          }
+        }
+      }
+    }
+    // tenta pegar do nome do lead (WhatsApp às vezes coloca o número)
+    const leads = raw.leads && raw.leads.status ? raw.leads.status : [];
+    for (const lead of leads) {
+      if (lead.name && lead.name.match(/\d{8,}/)) return lead.name;
+    }
+  } catch(e) {}
+  return null;
+}
+
 app.post("/webhook", async (req, res) => {
   try {
     const raw = Object.assign({}, req.query, req.body);
     console.log("RAW:", JSON.stringify(raw));
 
     const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
+    const phone = extrairTelefone(raw);
+
     console.log("leadsArray:", JSON.stringify(leadsArray));
+    console.log("phone extraido:", phone);
 
     for (const lead of leadsArray) {
       const statusId = String(lead.status_id || "");
       const price = lead.price || 0;
-      const phone = lead.name || null;
 
-      console.log("statusId:", statusId, "phone:", phone);
+      console.log("statusId:", statusId);
 
       if (statusId === ID_LEAD) {
-        console.log("Disparando evento Lead");
+        console.log("Disparando Lead");
         await enviarEventoMeta("Lead", phone, price);
       } else if (statusId === ID_COMPRA) {
-        console.log("Disparando evento Purchase");
+        console.log("Disparando Purchase");
         await enviarEventoMeta("Purchase", phone, price);
       }
     }
