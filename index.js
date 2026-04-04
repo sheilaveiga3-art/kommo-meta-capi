@@ -47,5 +47,47 @@ async function enviarEventoMeta(eventName, phone, email, value = 0) {
 
 app.post("/webhook", async (req, res) => {
   try {
-    const raw = req.body;
-    console​​​​​​​​​​​​​​​​
+    // Kommo pode enviar tanto no body quanto na query string
+    const raw = Object.assign({}, req.query, req.body);
+    console.log("Webhook RAW completo:", JSON.stringify(raw));
+
+    const leads = [];
+    const phones = [];
+
+    for (const key of Object.keys(raw)) {
+      if (key.includes("[status]")) {
+        const status = raw[key];
+        const priceKey = key.replace("[status]", "[price]");
+        const price = raw[priceKey] || 0;
+        leads.push({ status, price });
+      }
+      if (key.includes("custom_fields") && key.includes("[value]")) {
+        phones.push(raw[key]);
+      }
+    }
+
+    console.log("Leads:", JSON.stringify(leads));
+    console.log("Phones:", JSON.stringify(phones));
+
+    const phone = phones[0] || null;
+
+    for (const lead of leads) {
+      const etapaNome = (lead.status || "").toLowerCase();
+      if (etapaNome.includes(ETAPA_LEAD)) {
+        await enviarEventoMeta("Lead", phone, null, lead.price);
+      } else if (etapaNome.includes(ETAPA_COMPRA)) {
+        await enviarEventoMeta("Purchase", phone, null, lead.price);
+      }
+    }
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Erro:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/", (req, res) => res.send("Kommo → Meta CAPI rodando ✅"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
