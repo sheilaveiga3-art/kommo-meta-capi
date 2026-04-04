@@ -22,15 +22,12 @@ function hashSHA256(value) {
 async function buscarContatoKommo(leadId) {
   try {
     const urlLead = "https://adrianoveiga3.kommo.com/api/v4/leads/" + leadId + "?with=contacts";
-    console.log("Buscando lead URL:", urlLead);
     const resLead = await fetch(urlLead, {
       headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
     });
-    console.log("Status resposta lead:", resLead.status);
     const textLead = await resLead.text();
-    console.log("Resposta lead texto:", textLead.substring(0, 500));
-
     const dataLead = JSON.parse(textLead);
+
     const contactId = dataLead._embedded && dataLead._embedded.contacts && dataLead._embedded.contacts[0]
       ? dataLead._embedded.contacts[0].id : null;
 
@@ -41,9 +38,8 @@ async function buscarContatoKommo(leadId) {
       headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
     });
     const textContact = await resContact.text();
-    console.log("Resposta contato texto:", textContact.substring(0, 500));
-
     const contact = JSON.parse(textContact);
+
     let phone = null, email = null, firstName = null, lastName = null;
     firstName = contact.first_name || null;
     lastName = contact.last_name || null;
@@ -99,20 +95,29 @@ app.post("/webhook", async (req, res) => {
     const raw = Object.assign({}, req.query, req.body);
     const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
 
+    // Pega apenas o lead com o status_id mais recente (último do array)
+    const processados = new Set();
+
     for (const lead of leadsArray) {
       const statusId = String(lead.status_id || "");
       const leadId = lead.id;
       const price = lead.price || 0;
 
+      // Evita processar o mesmo lead duas vezes
+      if (processados.has(leadId)) continue;
+
       console.log("statusId:", statusId, "leadId:", leadId);
 
       if (statusId === ID_LEAD || statusId === ID_COMPRA) {
+        processados.add(leadId);
         const contactData = await buscarContatoKommo(leadId);
         console.log("Dados contato:", JSON.stringify(contactData));
 
         if (statusId === ID_LEAD) {
+          console.log("Disparando Lead");
           await enviarEventoMeta("Lead", contactData, price);
         } else {
+          console.log("Disparando Purchase");
           await enviarEventoMeta("Purchase", contactData, price);
         }
       }
