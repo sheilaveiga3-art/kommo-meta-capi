@@ -61,20 +61,36 @@ async function buscarContatoKommo(leadId) {
   }
 }
 
-async function enviarEventoMeta(eventName, contactData, value) {
+async function enviarEventoMeta(eventName, contactData, leadId, value) {
   const userData = {};
-  if (contactData.phone) userData.ph = hashSHA256(String(contactData.phone).replace(/\D/g, ""));
-  if (contactData.email) userData.em = hashSHA256(contactData.email);
-  if (contactData.firstName) userData.fn = hashSHA256(contactData.firstName);
-  if (contactData.lastName) userData.ln = hashSHA256(contactData.lastName);
+
+  if (contactData.phone) {
+    const phoneClean = String(contactData.phone).replace(/\D/g, "");
+    userData.ph = hashSHA256(phoneClean);
+  }
+  if (contactData.email) {
+    userData.em = hashSHA256(contactData.email);
+  }
+  if (contactData.firstName) {
+    userData.fn = hashSHA256(contactData.firstName);
+  }
+  if (contactData.lastName) {
+    userData.ln = hashSHA256(contactData.lastName);
+  }
+
+  userData.external_id = hashSHA256(String(leadId));
 
   const payload = {
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
+      event_id: eventName + "_" + leadId + "_" + Date.now(),
       action_source: "other",
       user_data: userData,
-      custom_data: { value: value || 0, currency: "BRL" },
+      custom_data: {
+        value: value || 0,
+        currency: "BRL"
+      },
     }],
     access_token: ACCESS_TOKEN,
   };
@@ -112,10 +128,10 @@ app.post("/webhook", async (req, res) => {
 
         if (IDS_LEAD.includes(statusId)) {
           console.log("Disparando Lead");
-          await enviarEventoMeta("Lead", contactData, price);
+          await enviarEventoMeta("Lead", contactData, leadId, price);
         } else {
           console.log("Disparando Purchase");
-          await enviarEventoMeta("Purchase", contactData, price);
+          await enviarEventoMeta("Purchase", contactData, leadId, price);
         }
       }
     }
