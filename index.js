@@ -18,7 +18,7 @@ function hashSHA256(value) {
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
 
-async function enviarEventoMeta(eventName, phone, email, value = 0) {
+async function enviarEventoMeta(eventName, phone, email, value) {
   const userData = {};
   if (phone) userData.ph = hashSHA256(phone.replace(/\D/g, ""));
   if (email) userData.em = hashSHA256(email);
@@ -29,27 +29,26 @@ async function enviarEventoMeta(eventName, phone, email, value = 0) {
       event_time: Math.floor(Date.now() / 1000),
       action_source: "other",
       user_data: userData,
-      custom_data: { value: value, currency: "BRL" },
+      custom_data: { value: value || 0, currency: "BRL" },
     }],
     access_token: ACCESS_TOKEN,
   };
 
-  const res = await fetch(`https://graph.facebook.com/v19.0/${PIXEL_ID}/events`, {
+  const res = await fetch("https://graph.facebook.com/v19.0/" + PIXEL_ID + "/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
   const data = await res.json();
-  console.log(`Evento "${eventName}" enviado:`, JSON.stringify(data));
+  console.log("Evento " + eventName + " enviado:", JSON.stringify(data));
   return data;
 }
 
 app.post("/webhook", async (req, res) => {
   try {
-    // Kommo pode enviar tanto no body quanto na query string
     const raw = Object.assign({}, req.query, req.body);
-    console.log("Webhook RAW completo:", JSON.stringify(raw));
+    console.log("Webhook RAW:", JSON.stringify(raw));
 
     const leads = [];
     const phones = [];
@@ -87,7 +86,7 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("Kommo → Meta CAPI rodando ✅"));
+app.get("/", (req, res) => res.send("Kommo Meta CAPI rodando"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log("Servidor rodando na porta " + PORT));
