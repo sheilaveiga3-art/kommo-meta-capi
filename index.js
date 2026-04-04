@@ -11,8 +11,8 @@ const PIXEL_ID = "2000845004161849";
 const ACCESS_TOKEN = "EAA51UoE82scBRBNFpaoDAJ3LXlgYcVdKZC27ndZBMuwOWLZB3cg3PnFXE8XakpbO9qxBqZCPgeZBCbm3wDUuYtymLeczz6HyMR9exZCEAJZCMbZBY3iNefJUnZCZClJShfZAIrIxmwRtXgoO6vtE4MixI5KVD7WZAPO2jyf0RcfgJo2kwk4EKS1BSQKFUdnKbL1t7PDuBAZDZD";
 const KOMMO_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjhkYmMxNGUxZDM2OGQ1NDc5Njg1YzM0Mzc4Nzg5OWY2MDFlODViZGFkOWUzMDg0YTQwZGYzYjhkMzFkYmMyN2M4NjhhNDQ2M2RlMTcyZjBmIn0.eyJhdWQiOiJmNjk0OWUxOC1lMjBjLTRiZGQtYmRjOS1iNjdhMDI3OTQ1ODMiLCJqdGkiOiI4ZGJjMTRlMWQzNjhkNTQ3OTY4NWMzNDM3ODc4OTlmNjAxZTg1YmRhZDllMzA4NGE0MGRmM2I4ZDMxZGJjMjdjODY4YTQ0NjNkZTE3MmYwZiIsImlhdCI6MTc3NTMzNjgwMCwibmJmIjoxNzc1MzM2ODAwLCJleHAiOjE5Mjc2NzA0MDAsInN1YiI6IjEzNDEwNDYzIiwiZ3JhbnRfdHlwZSI6IiIsImFjY291bnRfaWQiOjM0Nzg0NzQzLCJiYXNlX2RvbWFpbiI6ImtvbW1vLmNvbSIsInZlcnNpb24iOjIsInNjb3BlcyI6WyJwdXNoX25vdGlmaWNhdGlvbnMiLCJmaWxlcyIsImNybSIsImZpbGVzX2RlbGV0ZSIsIm5vdGlmaWNhdGlvbnMiXSwiaGFzaF91dWlkIjoiMTE3NjQxZGItMTc2Yi00ZDFiLTg5MmQtZWU0N2JmMTM4MGQyIiwiYXBpX2RvbWFpbiI6ImFwaS1nLmtvbW1vLmNvbSJ9.Nfl2Ibb0uj6cxOrVFCSYHNG85zBo9OM-lnZKtcj2DO-Y-QOrhVX-2mrzvlMoJ7Fjq5tADDTQwaDKMg46bNeytEDeTNg2PXi_SHwGXXeVi7HGVByJBpwB_gY9fgPem_Ndy6juPIjUn3RI3yGXtORQcKoejjH_3QJ4VGt_WZyq6BXXv8sG_OQj0JSmw0-9qLCQURXyE7BQj4GKdojJiz-QKEer2qK-xktvPAbrnWIhyhNNcJwh-lauOlbDLvwvcA4kEk6M78b5C6tbzaV8JMqwWNDNTug3C7NctV6OggssuzAGMQb6namDNceBDoV_-qmONCupJ2euAGIMvulFZJH12Q";
 
-const ID_LEAD = "143";
-const ID_COMPRA = "87758783";
+const IDS_LEAD = ["143", "93105455"];
+const IDS_COMPRA = ["87758783"];
 
 function hashSHA256(value) {
   if (!value) return null;
@@ -94,8 +94,6 @@ app.post("/webhook", async (req, res) => {
   try {
     const raw = Object.assign({}, req.query, req.body);
     const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
-
-    // Pega apenas o lead com o status_id mais recente (último do array)
     const processados = new Set();
 
     for (const lead of leadsArray) {
@@ -103,17 +101,16 @@ app.post("/webhook", async (req, res) => {
       const leadId = lead.id;
       const price = lead.price || 0;
 
-      // Evita processar o mesmo lead duas vezes
       if (processados.has(leadId)) continue;
 
       console.log("statusId:", statusId, "leadId:", leadId);
 
-      if (statusId === ID_LEAD || statusId === ID_COMPRA) {
+      if (IDS_LEAD.includes(statusId) || IDS_COMPRA.includes(statusId)) {
         processados.add(leadId);
         const contactData = await buscarContatoKommo(leadId);
         console.log("Dados contato:", JSON.stringify(contactData));
 
-        if (statusId === ID_LEAD) {
+        if (IDS_LEAD.includes(statusId)) {
           console.log("Disparando Lead");
           await enviarEventoMeta("Lead", contactData, price);
         } else {
