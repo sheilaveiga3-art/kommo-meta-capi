@@ -5,6 +5,7 @@ const fetch = (...args) =>
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 const PIXEL_ID = "2000845004161849";
 const ACCESS_TOKEN = "EAA51UoE82scBRG3csnZCvDs47npJEngQatAfjEhITZCPlxu8XHgbXktjSIZAI16xY7AEaRbrE66GFL5KhwDoyay1OUFFRKCq1rpawZBd3tFZCVmEr3BqgHnUa9mYMjZAQB3JMDrkmMo56edA0WrOTZADpZBrN2UK57EWy9uF2v2CUF72ulcgzwZBWn1dQXDL3ivRiFwZDZD";
@@ -46,39 +47,5 @@ async function enviarEventoMeta(eventName, phone, email, value = 0) {
 
 app.post("/webhook", async (req, res) => {
   try {
-    const body = req.body;
-    console.log("Webhook recebido:", JSON.stringify(body));
-    const leads = body?.leads?.update || [];
-    const contacts = body?.contacts?.update || body?.contacts?.add || [];
-
-    for (const lead of leads) {
-      const etapaNome = (lead.status || "").toLowerCase();
-      let phone = null, email = null;
-      const value = lead.price || 0;
-
-      if (contacts.length > 0) {
-        const customFields = contacts[0].custom_fields || [];
-        for (const field of customFields) {
-          if (field.code === "PHONE") phone = field.values?.[0]?.value;
-          if (field.code === "EMAIL") email = field.values?.[0]?.value;
-        }
-      }
-
-      if (etapaNome.includes(ETAPA_LEAD)) {
-        await enviarEventoMeta("Lead", phone, email, value);
-      } else if (etapaNome.includes(ETAPA_COMPRA)) {
-        await enviarEventoMeta("Purchase", phone, email, value);
-      }
-    }
-
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("Erro:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/", (req, res) => res.send("Kommo → Meta CAPI rodando ✅"));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+    const raw = req.body;
+    console​​​​​​​​​​​​​​​​
