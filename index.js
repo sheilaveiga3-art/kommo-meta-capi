@@ -22,12 +22,15 @@ function hashSHA256(value) {
 async function buscarContatoKommo(leadId) {
   try {
     const urlLead = "https://adrianoveiga3.kommo.com/api/v4/leads/" + leadId + "?with=contacts";
+    console.log("Buscando lead URL:", urlLead);
     const resLead = await fetch(urlLead, {
       headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
     });
-    const dataLead = await resLead.json();
-    console.log("Lead Kommo:", JSON.stringify(dataLead));
+    console.log("Status resposta lead:", resLead.status);
+    const textLead = await resLead.text();
+    console.log("Resposta lead texto:", textLead.substring(0, 500));
 
+    const dataLead = JSON.parse(textLead);
     const contactId = dataLead._embedded && dataLead._embedded.contacts && dataLead._embedded.contacts[0]
       ? dataLead._embedded.contacts[0].id : null;
 
@@ -37,9 +40,10 @@ async function buscarContatoKommo(leadId) {
     const resContact = await fetch(urlContact, {
       headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
     });
-    const contact = await resContact.json();
-    console.log("Contato Kommo:", JSON.stringify(contact));
+    const textContact = await resContact.text();
+    console.log("Resposta contato texto:", textContact.substring(0, 500));
 
+    const contact = JSON.parse(textContact);
     let phone = null, email = null, firstName = null, lastName = null;
     firstName = contact.first_name || null;
     lastName = contact.last_name || null;
@@ -56,7 +60,7 @@ async function buscarContatoKommo(leadId) {
 
     return { phone, email, firstName, lastName };
   } catch (err) {
-    console.error("Erro ao buscar contato:", err);
+    console.error("Erro ao buscar contato:", err.message);
     return {};
   }
 }
@@ -93,10 +97,7 @@ async function enviarEventoMeta(eventName, contactData, value) {
 app.post("/webhook", async (req, res) => {
   try {
     const raw = Object.assign({}, req.query, req.body);
-    console.log("RAW:", JSON.stringify(raw));
-
     const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
-    console.log("leadsArray:", JSON.stringify(leadsArray));
 
     for (const lead of leadsArray) {
       const statusId = String(lead.status_id || "");
