@@ -40,9 +40,12 @@ async function buscarContatoKommo(leadId) {
     const textContact = await resContact.text();
     const contact = JSON.parse(textContact);
 
-    let phone = null, email = null, firstName = null, lastName = null;
-    firstName = contact.first_name || null;
-    lastName = contact.last_name || null;
+    const nomeCompleto = contact.first_name || "";
+    const partes = nomeCompleto.trim().split(" ");
+    const firstName = partes[0] || null;
+    const lastName = partes.length > 1 ? partes.slice(1).join(" ") : null;
+
+    let phone = null, email = null;
 
     const fields = contact.custom_fields_values || [];
     for (const field of fields) {
@@ -85,7 +88,7 @@ async function enviarEventoMeta(eventName, contactData, leadId, value) {
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
       event_id: eventName + "_" + leadId + "_" + Date.now(),
-      action_source: "other",
+      action_source: "system_generated",
       user_data: userData,
       custom_data: {
         value: value || 0,
