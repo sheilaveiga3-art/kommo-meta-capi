@@ -152,7 +152,7 @@ async function enviarEventoMeta(eventName, contactData, leadId, value, reqData =
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
-      event_id: eventName + "_" + leadId + "_" + Date.now(),
+      event_id: eventName + "_" + leadId,
       action_source: "system_generated",
       user_data: userData,
       custom_data: {
