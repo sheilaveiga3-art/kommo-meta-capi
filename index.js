@@ -14,8 +14,6 @@ const KOMMO_TOKEN = “eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjhkYmMxNGUxZ
 const IDS_LEAD = [“93105455”];
 const IDS_COMPRA = [“87758783”];
 
-const PIXEL_ID_SHORT = “2000845004161849”;
-
 function hashSHA256(value) {
 if (!value) return null;
 return crypto.createHash(“sha256”).update(String(value).trim().toLowerCase()).digest(“hex”);
@@ -77,9 +75,6 @@ const resContact = await fetch(urlContact, {
 const textContact = await resContact.text();
 const contact = JSON.parse(textContact);
 
-// ✅ CORREÇÃO: busca first_name e last_name separados do Kommo
-// Se last_name vier preenchido, usa direto.
-// Se não vier, tenta separar pelo espaço do nome completo como fallback.
 let firstName = null;
 let lastName = null;
 
@@ -87,11 +82,9 @@ const nomeKommo = contact.first_name || "";
 const sobrenomeKommo = contact.last_name || "";
 
 if (sobrenomeKommo.trim()) {
-  // Kommo tem os campos separados
   firstName = nomeKommo.trim() || null;
   lastName = sobrenomeKommo.trim() || null;
 } else {
-  // Fallback: tenta separar pelo espaço
   const partes = nomeKommo.trim().split(" ");
   firstName = partes[0] || null;
   lastName = partes.length > 1 ? partes.slice(1).join(" ") : null;
@@ -138,7 +131,6 @@ userData.ln = hashSHA256(contactData.lastName);
 }
 
 userData.external_id = hashSHA256(String(leadId));
-
 userData.fbp = gerarFbp(leadId);
 
 const fbc = gerarFbc(contactData.fbclid, leadId);
