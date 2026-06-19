@@ -9,98 +9,21 @@ app.use(express.urlencoded({ extended: true }));
 
 const PIXEL_ID = process.env.PIXEL_ID;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
-const KOMMO_TOKEN = process.env.KOMMO_TOKEN;
-
-const IDS_LEAD = ["93105455"];
-const IDS_COMPRA = ["87758783"];
-
-const PIXEL_ID_SHORT = "2000845004161849";
 
 function hashSHA256(value) {
   if (!value) return null;
   return crypto.createHash("sha256").update(String(value).trim().toLowerCase()).digest("hex");
 }
 
-function gerarFbp(leadId) {
+function gerarFbp(contactId) {
   const version = "fb";
   const subdomainIndex = 1;
   const creationTime = Math.floor(Date.now() / 1000);
-  const randomNumber = parseInt(String(leadId).slice(-8)) || Math.floor(Math.random() * 1e10);
+  const randomNumber = parseInt(String(contactId).slice(-8)) || Math.floor(Math.random() * 1e10);
   return `${version}.${subdomainIndex}.${creationTime}.${randomNumber}`;
 }
 
-function gerarFbc(fbclid, leadId) {
-  if (!fbclid) return null;
-  const version = "fb";
-  const subdomainIndex = 1;
-  const creationTime = Math.floor(Date.now() / 1000);
-  return `${version}.${subdomainIndex}.${creationTime}.${fbclid}`;
-}
-
-async function buscarContatoKommo(leadId) {
-  try {
-    const urlLead = "https://adrianoveiga3.kommo.com/api/v4/leads/" + leadId + "?with=contacts";
-    const resLead = await fetch(urlLead, {
-      headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
-    });
-    const textLead = await resLead.text();
-    const dataLead = JSON.parse(textLead);
-
-    const leadCustomFields = dataLead.custom_fields_values || [];
-    let fbclid = null;
-    let utmSource = null;
-    let utmCampaign = null;
-
-    for (const field of leadCustomFields) {
-      const name = (field.field_name || "").toLowerCase();
-      if (name.includes("fbclid") && field.values && field.values[0]) {
-        fbclid = field.values[0].value;
-      }
-      if (name.includes("utm_source") && field.values && field.values[0]) {
-        utmSource = field.values[0].value;
-      }
-      if (name.includes("utm_campaign") && field.values && field.values[0]) {
-        utmCampaign = field.values[0].value;
-      }
-    }
-
-    const contactId = dataLead._embedded && dataLead._embedded.contacts && dataLead._embedded.contacts[0]
-      ? dataLead._embedded.contacts[0].id : null;
-
-    if (!contactId) return { fbclid, utmSource, utmCampaign };
-
-    const urlContact = "https://adrianoveiga3.kommo.com/api/v4/contacts/" + contactId;
-    const resContact = await fetch(urlContact, {
-      headers: { "Authorization": "Bearer " + KOMMO_TOKEN }
-    });
-    const textContact = await resContact.text();
-    const contact = JSON.parse(textContact);
-
-    const nomeCompleto = contact.first_name || "";
-    const partes = nomeCompleto.trim().split(" ");
-    const firstName = partes[0] || null;
-    const lastName = partes.length > 1 ? partes.slice(1).join(" ") : null;
-
-    let phone = null, email = null;
-
-    const fields = contact.custom_fields_values || [];
-    for (const field of fields) {
-      if (field.field_code === "PHONE" && field.values && field.values[0]) {
-        phone = field.values[0].value;
-      }
-      if (field.field_code === "EMAIL" && field.values && field.values[0]) {
-        email = field.values[0].value;
-      }
-    }
-
-    return { phone, email, firstName, lastName, fbclid, utmSource, utmCampaign };
-  } catch (err) {
-    console.error("Erro ao buscar contato:", err.message);
-    return {};
-  }
-}
-
-async function enviarEventoMeta(eventName, contactData, leadId, value, reqData = {}) {
+async function enviarEventoMeta(eventName, contactData, value) {
   const userData = {};
 
   if (contactData.phone) {
@@ -115,39 +38,27 @@ async function enviarEventoMeta(eventName, contactData, leadId, value, reqData =
   if (contactData.firstName) {
     userData.fn = hashSHA256(contactData.firstName);
   }
+
   if (contactData.lastName) {
     userData.ln = hashSHA256(contactData.lastName);
   }
 
-  userData.external_id = hashSHA256(String(leadId));
-
-  userData.fbp = gerarFbp(leadId);
-
-  const fbc = gerarFbc(contactData.fbclid, leadId);
-  if (fbc) {
-    userData.fbc = fbc;
+  if (contactData.id) {
+    userData.external_id = hashSHA256(String(contactData.id));
   }
 
-  if (reqData.ip) {
-    userData.client_ip_address = reqData.ip;
-  }
-
-  if (reqData.userAgent) {
-    userData.client_user_agent = reqData.userAgent;
-  }
+  userData.fbp = gerarFbp(contactData.id);
 
   const payload = {
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
-      event_id: eventName + "_" + leadId,
+      event_id: eventName + "_" + contactData.id,
       action_source: "system_generated",
       user_data: userData,
       custom_data: {
         value: value || 0,
         currency: "BRL",
-        ...(contactData.utmSource && { utm_source: contactData.utmSource }),
-        ...(contactData.utmCampaign && { utm_campaign: contactData.utmCampaign }),
       },
     }],
     access_token: ACCESS_TOKEN,
@@ -168,38 +79,22 @@ async function enviarEventoMeta(eventName, contactData, leadId, value, reqData =
 
 app.post("/webhook", async (req, res) => {
   try {
-    const raw = Object.assign({}, req.query, req.body);
-    const leadsArray = (raw.leads && raw.leads.status) ? raw.leads.status : [];
-    const processados = new Set();
+    const body = req.body;
 
-    const reqData = {
-      ip: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || null,
-      userAgent: req.headers["user-agent"] || null,
+    const eventName = body.event_name || "Lead";
+    const value = body.value || 0;
+
+    const contactData = {
+      id: body.contact_id,
+      phone: body.phone,
+      email: body.email,
+      firstName: body.first_name,
+      lastName: body.last_name,
     };
 
-    for (const lead of leadsArray) {
-      const statusId = String(lead.status_id || "");
-      const leadId = lead.id;
-      const price = lead.price || 0;
+    console.log("Dados recebidos:", JSON.stringify(contactData));
 
-      if (processados.has(leadId)) continue;
-
-      console.log("statusId:", statusId, "leadId:", leadId);
-
-      if (IDS_LEAD.includes(statusId) || IDS_COMPRA.includes(statusId)) {
-        processados.add(leadId);
-        const contactData = await buscarContatoKommo(leadId);
-        console.log("Dados contato:", JSON.stringify(contactData));
-
-        if (IDS_LEAD.includes(statusId)) {
-          console.log("Disparando Lead");
-          await enviarEventoMeta("Lead", contactData, leadId, price, reqData);
-        } else {
-          console.log("Disparando Purchase");
-          await enviarEventoMeta("Purchase", contactData, leadId, price, reqData);
-        }
-      }
-    }
+    await enviarEventoMeta(eventName, contactData, value);
 
     res.status(200).json({ ok: true });
   } catch (err) {
@@ -208,7 +103,7 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => res.send("Kommo Meta CAPI rodando"));
+app.get("/", (req, res) => res.send("Respond.io Meta CAPI rodando"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Servidor rodando na porta " + PORT));
