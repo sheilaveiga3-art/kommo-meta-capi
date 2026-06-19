@@ -23,7 +23,16 @@ function gerarFbp(contactId) {
   return `${version}.${subdomainIndex}.${creationTime}.${randomNumber}`;
 }
 
-async function enviarEventoMeta(eventName, contactData, value) {
+// NOVA FUNÇÃO: Transforma o ID do clique no formato exigido pela CAPI do Meta (fbc)
+function gerarFbc(fbclid) {
+  if (!fbclid || fbclid === "null" || fbclid === "$contact.click_id") return null;
+  const version = "fb";
+  const subdomainIndex = 1;
+  const creationTime = Math.floor(Date.now() / 1000);
+  return `${version}.${subdomainIndex}.${creationTime}.${fbclid}`;
+}
+
+async function enviarEventoMeta(eventName, contactData, value, fbclid) {
   const userData = {};
 
   if (contactData.phone) {
@@ -31,7 +40,7 @@ async function enviarEventoMeta(eventName, contactData, value) {
     userData.ph = hashSHA256(phoneClean);
   }
 
-  if (contactData.email) {
+  if (contactData.email && contactData.email !== "null") {
     userData.em = hashSHA256(contactData.email);
   }
 
@@ -49,15 +58,21 @@ async function enviarEventoMeta(eventName, contactData, value) {
 
   userData.fbp = gerarFbp(contactData.id);
 
+  // NOVA LINHA: Adiciona o fbc formatado ao user_data enviado para o Meta
+  const fbcFormatado = gerarFbc(fbclid);
+  if (fbcFormatado) {
+    userData.fbc = fbcFormatado;
+  }
+
   const payload = {
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
-      event_id: eventName + "_" + contactData.id,
+      event_id: eventName + "_" + contactData.id, // ID Único para o Meta usar na desduplicação
       action_source: "system_generated",
       user_data: userData,
       custom_data: {
-        value: value || 0,
+        value: Number(value) || 0,
         currency: "BRL",
       },
     }],
@@ -83,6 +98,7 @@ app.post("/webhook", async (req, res) => {
 
     const eventName = body.event_name || "Lead";
     const value = body.value || 0;
+    const fbclid = body.fbclid; // CAPTURA o clique vindo do Respond.io
 
     const contactData = {
       id: body.contact_id,
@@ -92,9 +108,9 @@ app.post("/webhook", async (req, res) => {
       lastName: body.last_name,
     };
 
-    console.log("Dados recebidos:", JSON.stringify(contactData));
+    console.log("Dados recebidos no Servidor:", JSON.stringify(body));
 
-    await enviarEventoMeta(eventName, contactData, value);
+    await enviarEventoMeta(eventName, contactData, value, fbclid);
 
     res.status(200).json({ ok: true });
   } catch (err) {
