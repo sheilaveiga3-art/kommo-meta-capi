@@ -56,8 +56,6 @@ async function enviarEventoMeta(eventName, contactData, value, fbclid) {
     userData.external_id = hashSHA256(String(contactData.id));
   }
 
-  userData.fbp = gerarFbp(contactData.id);
-
   // NOVA LINHA: Adiciona o fbc formatado ao user_data enviado para o Meta
   const fbcFormatado = gerarFbc(fbclid);
   if (fbcFormatado) {
