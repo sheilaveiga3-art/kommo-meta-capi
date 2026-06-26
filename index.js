@@ -16,15 +16,7 @@ function hashSHA256(value) {
   return crypto.createHash("sha256").update(String(value).trim().toLowerCase()).digest("hex");
 }
 
-function gerarFbc(fbclid) {
-  if (!fbclid || fbclid === "null" || fbclid === "$contact.click_id") return null;
-  const version = "fb";
-  const subdomainIndex = 1;
-  const creationTime = Math.floor(Date.now() / 1000);
-  return `${version}.${subdomainIndex}.${creationTime}.${fbclid}`;
-}
-
-async function enviarEventoMeta(eventName, contactData, value, fbclid) {
+async function enviarEventoMeta(eventName, contactData, value, ctwaClid) {
   const userData = {};
 
   if (contactData.phone) {
@@ -48,72 +40,4 @@ async function enviarEventoMeta(eventName, contactData, value, fbclid) {
     userData.external_id = hashSHA256(String(contactData.id));
   }
 
-  if (PAGE_ID) {
-    userData.page_id = PAGE_ID;
-  }
-
-  const fbcFormatado = gerarFbc(fbclid);
-  if (fbcFormatado) {
-    userData.fbc = fbcFormatado;
-  }
-
-  const payload = {
-    data: [{
-      event_name: eventName,
-      event_time: Math.floor(Date.now() / 1000),
-      event_id: eventName + "_" + contactData.id,
-      action_source: "business_messaging",
-      messaging_channel: "whatsapp",
-      user_data: userData,
-      custom_data: {
-        value: Number(value) || 0,
-        currency: "BRL",
-      },
-    }],
-    access_token: ACCESS_TOKEN,
-  };
-
-  console.log("Payload enviado:", JSON.stringify(payload, null, 2));
-
-  const res = await fetch("https://graph.facebook.com/v19.0/" + PIXEL_ID + "/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await res.json();
-  console.log("Evento " + eventName + " enviado:", JSON.stringify(data));
-  return data;
-}
-
-app.post("/webhook", async (req, res) => {
-  try {
-    const body = req.body;
-
-    const eventName = body.event_name || "Lead";
-    const value = body.value || 0;
-    const fbclid = body.fbclid;
-
-    const contactData = {
-      id: body.contact_id,
-      phone: body.phone,
-      email: body.email,
-      firstName: body.first_name,
-      lastName: body.last_name,
-    };
-
-    console.log("Dados recebidos no Servidor:", JSON.stringify(body));
-
-    await enviarEventoMeta(eventName, contactData, value, fbclid);
-
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("Erro:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/", (req, res) => res.send("Respond.io Meta CAPI rodando"));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Servidor rodando na porta " + PORT));
+  if (PAGE_
