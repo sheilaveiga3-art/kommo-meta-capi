@@ -15,14 +15,6 @@ function hashSHA256(value) {
   return crypto.createHash("sha256").update(String(value).trim().toLowerCase()).digest("hex");
 }
 
-function gerarFbp(contactId) {
-  const version = "fb";
-  const subdomainIndex = 1;
-  const creationTime = Math.floor(Date.now() / 1000);
-  const randomNumber = parseInt(String(contactId).slice(-8)) || Math.floor(Math.random() * 1e10);
-  return `${version}.${subdomainIndex}.${creationTime}.${randomNumber}`;
-}
-
 async function enviarEventoMeta(eventName, contactData, value) {
   const userData = {};
 
@@ -47,14 +39,12 @@ async function enviarEventoMeta(eventName, contactData, value) {
     userData.external_id = hashSHA256(String(contactData.id));
   }
 
-  userData.fbp = gerarFbp(contactData.id);
-
   const payload = {
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
       event_id: eventName + "_" + contactData.id,
-      action_source: "website",
+      action_source: "system_generated",
       user_data: userData,
       custom_data: {
         value: Number(value) || 0,
