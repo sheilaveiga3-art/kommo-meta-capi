@@ -70,6 +70,7 @@ async function enviarEventoMeta(eventName, contactData, value, fbclid) {
       event_time: Math.floor(Date.now() / 1000),
       event_id: eventName + "_" + contactData.id, // ID Único para o Meta usar na desduplicação
       action_source: "business_messaging",
+      messaging_channel: "whatsapp",
       user_data: userData,
       custom_data: {
         value: Number(value) || 0,
