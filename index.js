@@ -9,21 +9,13 @@ app.use(express.urlencoded({ extended: true }));
 
 const PIXEL_ID = process.env.PIXEL_ID;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const PAGE_ID = process.env.PAGE_ID;
 
 function hashSHA256(value) {
   if (!value) return null;
   return crypto.createHash("sha256").update(String(value).trim().toLowerCase()).digest("hex");
 }
 
-function gerarFbp(contactId) {
-  const version = "fb";
-  const subdomainIndex = 1;
-  const creationTime = Math.floor(Date.now() / 1000);
-  const randomNumber = parseInt(String(contactId).slice(-8)) || Math.floor(Math.random() * 1e10);
-  return `${version}.${subdomainIndex}.${creationTime}.${randomNumber}`;
-}
-
-// NOVA FUNÇÃO: Transforma o ID do clique no formato exigido pela CAPI do Meta (fbc)
 function gerarFbc(fbclid) {
   if (!fbclid || fbclid === "null" || fbclid === "$contact.click_id") return null;
   const version = "fb";
@@ -56,7 +48,10 @@ async function enviarEventoMeta(eventName, contactData, value, fbclid) {
     userData.external_id = hashSHA256(String(contactData.id));
   }
 
-  // NOVA LINHA: Adiciona o fbc formatado ao user_data enviado para o Meta
+  if (PAGE_ID) {
+    userData.page_id = PAGE_ID;
+  }
+
   const fbcFormatado = gerarFbc(fbclid);
   if (fbcFormatado) {
     userData.fbc = fbcFormatado;
@@ -66,7 +61,7 @@ async function enviarEventoMeta(eventName, contactData, value, fbclid) {
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
-      event_id: eventName + "_" + contactData.id, // ID Único para o Meta usar na desduplicação
+      event_id: eventName + "_" + contactData.id,
       action_source: "business_messaging",
       messaging_channel: "whatsapp",
       user_data: userData,
@@ -97,7 +92,7 @@ app.post("/webhook", async (req, res) => {
 
     const eventName = body.event_name || "Lead";
     const value = body.value || 0;
-    const fbclid = body.fbclid; // CAPTURA o clique vindo do Respond.io
+    const fbclid = body.fbclid;
 
     const contactData = {
       id: body.contact_id,
@@ -111,14 +106,4 @@ app.post("/webhook", async (req, res) => {
 
     await enviarEventoMeta(eventName, contactData, value, fbclid);
 
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("Erro:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/", (req, res) => res.send("Respond.io Meta CAPI rodando"));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Servidor rodando na porta " + PORT));
+    res.status(200).json({ ok: true
