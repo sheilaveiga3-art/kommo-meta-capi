@@ -69,7 +69,7 @@ async function enviarEventoMeta(eventName, contactData, value, fbclid) {
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
       event_id: eventName + "_" + contactData.id, // ID Único para o Meta usar na desduplicação
-      action_source: "system_generated",
+      action_source: "business_messaging",
       user_data: userData,
       custom_data: {
         value: Number(value) || 0,
