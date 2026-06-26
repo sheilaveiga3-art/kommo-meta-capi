@@ -9,14 +9,21 @@ app.use(express.urlencoded({ extended: true }));
 
 const PIXEL_ID = process.env.PIXEL_ID;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
-const PAGE_ID = process.env.PAGE_ID;
 
 function hashSHA256(value) {
   if (!value) return null;
   return crypto.createHash("sha256").update(String(value).trim().toLowerCase()).digest("hex");
 }
 
-async function enviarEventoMeta(eventName, contactData, value, ctwaClid) {
+function gerarFbp(contactId) {
+  const version = "fb";
+  const subdomainIndex = 1;
+  const creationTime = Math.floor(Date.now() / 1000);
+  const randomNumber = parseInt(String(contactId).slice(-8)) || Math.floor(Math.random() * 1e10);
+  return `${version}.${subdomainIndex}.${creationTime}.${randomNumber}`;
+}
+
+async function enviarEventoMeta(eventName, contactData, value) {
   const userData = {};
 
   if (contactData.phone) {
@@ -40,21 +47,14 @@ async function enviarEventoMeta(eventName, contactData, value, ctwaClid) {
     userData.external_id = hashSHA256(String(contactData.id));
   }
 
-  if (PAGE_ID) {
-    userData.page_id = PAGE_ID;
-  }
-
-  if (ctwaClid && ctwaClid !== "null" && ctwaClid !== "$contact.click_id") {
-    userData.ctwa_clid = ctwaClid;
-  }
+  userData.fbp = gerarFbp(contactData.id);
 
   const payload = {
     data: [{
       event_name: eventName,
       event_time: Math.floor(Date.now() / 1000),
       event_id: eventName + "_" + contactData.id,
-      action_source: "business_messaging",
-      messaging_channel: "whatsapp",
+      action_source: "website",
       user_data: userData,
       custom_data: {
         value: Number(value) || 0,
@@ -83,7 +83,6 @@ app.post("/webhook", async (req, res) => {
 
     const eventName = body.event_name || "Lead";
     const value = body.value || 0;
-    const ctwaClid = body.fbclid;
 
     const contactData = {
       id: body.contact_id,
@@ -95,7 +94,7 @@ app.post("/webhook", async (req, res) => {
 
     console.log("Dados recebidos no Servidor:", JSON.stringify(body));
 
-    await enviarEventoMeta(eventName, contactData, value, ctwaClid);
+    await enviarEventoMeta(eventName, contactData, value);
 
     res.status(200).json({ ok: true });
   } catch (err) {
